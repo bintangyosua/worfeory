@@ -152,6 +152,11 @@
 		}
 
 		isCalculating = false;
+
+		// Auto-fill the top suggestion into the board
+		if (suggestions.length > 0) {
+			selectSuggestion(suggestions[0].word);
+		}
 	}
 
 	function selectSuggestion(word: string) {
