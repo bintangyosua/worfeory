@@ -35,6 +35,13 @@ export function getSuggestions(
 	if (remainingWords.length === 1) {
 		return [{ word: remainingWords[0], score: 0 }];
 	}
+	if (remainingWords.length === 2) {
+		// "Kalo sisa 2, bukan mencari informasi lagi, tapi pake aja salah satunya"
+		return [
+			{ word: remainingWords[0], score: 0 },
+			{ word: remainingWords[1], score: 0 }
+		];
+	}
 
 	const scored: SolverSuggestion[] = [];
 
@@ -48,6 +55,19 @@ export function getSuggestions(
 	scored.sort((a, b) => b.score - a.score);
 
 	return scored.slice(0, topN);
+}
+
+/**
+ * Get the top N possible words sorted by frequency.
+ */
+export function getTopPossibleWords(
+	remainingWords: string[],
+	topN: number = 10
+): string[] {
+	// We map to frequencies, sort, and take topN
+	return [...remainingWords]
+		.sort((a, b) => getWordFrequency(b) - getWordFrequency(a))
+		.slice(0, topN);
 }
 
 /**

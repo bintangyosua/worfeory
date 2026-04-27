@@ -15,15 +15,18 @@
 		applyGuess,
 		tilesToPattern,
 		getWordlist,
-		isValidWord
+		isValidWord,
+		getTopPossibleWords
 	} from '$lib/solver/solver';
 	import { RotateCcw, Lightbulb, Info, Zap } from '@lucide/svelte';
+	import { onMount } from 'svelte';
 
 	// Game state
 	let guesses = $state<GuessRow[]>(createEmptyBoard());
 	let activeRow = $state(0);
 	let currentCol = $state(0);
 	let remainingWords = $state<string[]>(getWordlist());
+	let topPossibleWords = $derived(getTopPossibleWords(remainingWords, 10));
 	let suggestions = $state<SolverSuggestion[]>([]);
 	let isCalculating = $state(false);
 	let letterStates = $state<Record<string, 'correct' | 'present' | 'absent' | undefined>>({});
@@ -182,11 +185,16 @@
 		letterStates = {};
 		gameMessage = '';
 		gameWon = false;
+		selectSuggestion('salet');
 	}
 
 	function getInitialSuggestion() {
 		calculateSuggestions();
 	}
+
+	onMount(() => {
+		selectSuggestion('salet');
+	});
 
 	// Handle physical keyboard events
 	function handleKeydown(e: KeyboardEvent) {
@@ -283,9 +291,6 @@
 				</div>
 			{/if}
 
-			<!-- Board -->
-			<Board {guesses} {activeRow} onTileClick={handleTileClick} />
-
 			<!-- Tile Color Legend -->
 			<div class="flex items-center gap-4 text-xs text-muted-foreground">
 				<div class="flex items-center gap-1.5">
@@ -302,6 +307,9 @@
 				</div>
 			</div>
 
+			<!-- Board -->
+			<Board {guesses} {activeRow} onTileClick={handleTileClick} />
+
 			<Separator />
 
 			<!-- Keyboard -->
@@ -313,6 +321,7 @@
 			<div class="sticky top-6 space-y-4">
 				<SuggestionPanel
 					{suggestions}
+					possibleWords={topPossibleWords}
 					remainingCount={remainingWords.length}
 					onSelectWord={selectSuggestion}
 					{isCalculating}
@@ -332,7 +341,8 @@
 				<Card.Root>
 					<Card.Header class="pb-3">
 						<Card.Title class="text-base">Starter Words</Card.Title>
-						<Card.Description>Optimized openers (~3.42 guesses avg). Click to use.</Card.Description>
+						<Card.Description>Optimized openers (~3.42 guesses avg). Click to use.</Card.Description
+						>
 					</Card.Header>
 					<Card.Content class="pb-4">
 						<div class="grid grid-cols-3 gap-3 text-center">
@@ -341,7 +351,7 @@
 								<div class="space-y-1">
 									{#each ['salet', 'reast', 'crate', 'trace', 'slate', 'crane'] as word}
 										<button
-											class="block w-full rounded-md px-2 py-1 font-mono text-xs font-bold uppercase tracking-wider transition-colors hover:bg-accent hover:text-accent-foreground"
+											class="block w-full rounded-md px-2 py-1 font-mono text-xs font-bold tracking-wider uppercase transition-colors hover:bg-accent hover:text-accent-foreground"
 											onclick={() => selectSuggestion(word)}
 											type="button"
 										>
@@ -355,7 +365,7 @@
 								<div class="space-y-1">
 									{#each ['rance', 'rants', 'rated', 'ronte', 'alter', 'lance'] as word}
 										<button
-											class="block w-full rounded-md px-2 py-1 font-mono text-xs font-bold uppercase tracking-wider transition-colors hover:bg-accent hover:text-accent-foreground"
+											class="block w-full rounded-md px-2 py-1 font-mono text-xs font-bold tracking-wider uppercase transition-colors hover:bg-accent hover:text-accent-foreground"
 											onclick={() => selectSuggestion(word)}
 											type="button"
 										>
@@ -369,7 +379,7 @@
 								<div class="space-y-1">
 									{#each ['salet', 'cramp'] as word}
 										<button
-											class="block w-full rounded-md px-2 py-1 font-mono text-xs font-bold uppercase tracking-wider transition-colors hover:bg-accent hover:text-accent-foreground"
+											class="block w-full rounded-md px-2 py-1 font-mono text-xs font-bold tracking-wider uppercase transition-colors hover:bg-accent hover:text-accent-foreground"
 											onclick={() => selectSuggestion(word)}
 											type="button"
 										>
