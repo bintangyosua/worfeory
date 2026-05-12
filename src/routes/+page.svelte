@@ -11,6 +11,8 @@
 		type TileData,
 		type TileState,
 		type SolverSuggestion,
+		type SolverMode,
+		type GuessHistory,
 		getSuggestions,
 		applyGuess,
 		tilesToPattern,
@@ -18,6 +20,7 @@
 		isValidWord,
 		getTopPossibleWords
 	} from '$lib/solver/solver';
+	import { Input } from '$lib/components/ui/input';
 	import { RotateCcw, Lightbulb, Info, Zap } from '@lucide/svelte';
 	import { onMount } from 'svelte';
 
@@ -33,6 +36,24 @@
 	let gameMessage = $state('');
 	let gameWon = $state(false);
 	let showHelp = $state(false);
+
+	let selectedMode = $state<SolverMode>('rookie');
+	let selectedStarter = $state('salet');
+	let simTarget = $state('');
+	let isSimulating = $state(false);
+
+	function buildHistory(upToRow: number): GuessHistory[] {
+		const h: GuessHistory[] = [];
+		if (upToRow < 0) return h;
+		for (let r = 0; r <= upToRow; r++) {
+			const row = guesses[r];
+			const word = row.tiles.map((t) => t.letter).join('');
+			if (word.length !== 5) break;
+			const pattern = tilesToPattern(row.tiles);
+			h.push({ guess: word, pattern });
+		}
+		return h;
+	}
 
 	function createEmptyBoard(): GuessRow[] {
 		return Array.from({ length: 6 }, () => ({
@@ -149,7 +170,8 @@
 		await new Promise((resolve) => setTimeout(resolve, 50));
 
 		try {
-			suggestions = getSuggestions(remainingWords, 10);
+			const history = buildHistory(activeRow > 0 ? activeRow - 1 : -1);
+			suggestions = getSuggestions(remainingWords, history, selectedMode, 10);
 		} catch {
 			suggestions = [];
 		}
@@ -185,15 +207,79 @@
 		letterStates = {};
 		gameMessage = '';
 		gameWon = false;
-		selectSuggestion('salet');
+		selectSuggestion(selectedStarter);
 	}
 
 	function getInitialSuggestion() {
 		calculateSuggestions();
 	}
 
+	async function simulateGame() {
+		const targetWord = simTarget.toLowerCase();
+		if (targetWord.length !== 5) return;
+		
+		if (!isValidWord(targetWord)) {
+			gameMessage = 'Target word not in dictionary!';
+			setTimeout(() => (gameMessage = ''), 2000);
+			return;
+		}
+
+		isSimulating = true;
+
+		try {
+			resetGame();
+			await new Promise(res => setTimeout(res, 50));
+
+			for (let r = 0; r < 6; r++) {
+				if (r === 0) {
+					selectSuggestion(selectedStarter);
+				} else {
+					if (suggestions.length === 0) {
+						gameMessage = 'No words left to guess!';
+						break;
+					}
+					selectSuggestion(suggestions[0].word);
+				}
+
+				const guess = guesses[activeRow].word;
+				let remainingTarget = targetWord.split('');
+				const pattern = ['A', 'A', 'A', 'A', 'A'];
+				
+				// Pass 1: Correct
+				for (let i = 0; i < 5; i++) {
+					if (guess[i] === remainingTarget[i]) {
+						pattern[i] = 'C';
+						remainingTarget[i] = '.';
+					}
+				}
+				// Pass 2: Present
+				for (let i = 0; i < 5; i++) {
+					if (pattern[i] !== 'C') {
+						const idx = remainingTarget.indexOf(guess[i]);
+						if (idx !== -1) {
+							pattern[i] = 'P';
+							remainingTarget[idx] = '.';
+						}
+					}
+				}
+
+				for (let i = 0; i < 5; i++) {
+					guesses[activeRow].tiles[i].state = pattern[i] === 'C' ? 'correct' : (pattern[i] === 'P' ? 'present' : 'absent');
+				}
+
+				submitGuess();
+
+				if (gameWon) break;
+				
+				await new Promise(res => setTimeout(res, 500));
+			}
+		} finally {
+			isSimulating = false;
+		}
+	}
+
 	onMount(() => {
-		selectSuggestion('salet');
+		selectSuggestion(selectedStarter);
 	});
 
 	// Handle physical keyboard events
@@ -337,57 +423,87 @@
 					{suggestions.length > 0 ? 'Recalculate' : 'Get Suggestions'}
 				</Button>
 
-				<!-- Starter Words -->
+				<!-- Mode Picker -->
 				<Card.Root>
 					<Card.Header class="pb-3">
-						<Card.Title class="text-base">Starter Words</Card.Title>
-						<Card.Description>Optimized openers (~3.42 guesses avg). Click to use.</Card.Description
-						>
+						<Card.Title class="text-base">Solver Mode</Card.Title>
+						<Card.Description>Select the difficulty constraints</Card.Description>
 					</Card.Header>
 					<Card.Content class="pb-4">
-						<div class="grid grid-cols-3 gap-3 text-center">
-							<div>
-								<p class="mb-2 text-xs font-medium text-muted-foreground">Fastest Avg</p>
-								<div class="space-y-1">
-									{#each ['salet', 'reast', 'crate', 'trace', 'slate', 'crane'] as word}
-										<button
-											class="block w-full rounded-md px-2 py-1 font-mono text-xs font-bold tracking-wider uppercase transition-colors hover:bg-accent hover:text-accent-foreground"
-											onclick={() => selectSuggestion(word)}
-											type="button"
-										>
-											{word}
-										</button>
-									{/each}
-								</div>
-							</div>
-							<div>
-								<p class="mb-2 text-xs font-medium text-muted-foreground">Fewest 5+</p>
-								<div class="space-y-1">
-									{#each ['rance', 'rants', 'rated', 'ronte', 'alter', 'lance'] as word}
-										<button
-											class="block w-full rounded-md px-2 py-1 font-mono text-xs font-bold tracking-wider uppercase transition-colors hover:bg-accent hover:text-accent-foreground"
-											onclick={() => selectSuggestion(word)}
-											type="button"
-										>
-											{word}
-										</button>
-									{/each}
-								</div>
-							</div>
-							<div>
-								<p class="mb-2 text-xs font-medium text-muted-foreground">Hard Mode</p>
-								<div class="space-y-1">
-									{#each ['salet', 'cramp'] as word}
-										<button
-											class="block w-full rounded-md px-2 py-1 font-mono text-xs font-bold tracking-wider uppercase transition-colors hover:bg-accent hover:text-accent-foreground"
-											onclick={() => selectSuggestion(word)}
-											type="button"
-										>
-											{word}
-										</button>
-									{/each}
-								</div>
-							</div>
+						<div class="grid grid-cols-3 gap-2">
+							{#each ['rookie', 'veteran', 'legend'] as mode}
+								<Button
+									variant={selectedMode === mode ? 'default' : 'outline'}
+									size="sm"
+									class="capitalize"
+									onclick={() => {
+										selectedMode = mode as SolverMode;
+										if (simTarget.length === 5 && !isSimulating) {
+											simulateGame();
+										} else if (activeRow > 0) {
+											calculateSuggestions();
+										}
+									}}
+								>
+									{mode}
+								</Button>
+							{/each}
+						</div>
+					</Card.Content>
+				</Card.Root>
+
+				<!-- Starter Picker -->
+				<Card.Root>
+					<Card.Header class="pb-3">
+						<Card.Title class="text-base">Choose Starter Word</Card.Title>
+						<Card.Description>Select your preferred opening word</Card.Description>
+					</Card.Header>
+					<Card.Content class="pb-4">
+						<div class="grid grid-cols-2 gap-2">
+							<Button
+								variant={selectedStarter === 'salet' ? 'default' : 'outline'}
+								class="h-auto flex-col items-start py-2"
+								onclick={() => {
+									selectedStarter = 'salet';
+									if (activeRow === 0 && currentCol === 0) selectSuggestion('salet');
+								}}
+							>
+								<span class="font-bold tracking-wider">SALET</span>
+								<span class="text-[10px] font-normal opacity-80">Fastest solve</span>
+							</Button>
+							<Button
+								variant={selectedStarter === 'tares' ? 'default' : 'outline'}
+								class="h-auto flex-col items-start py-2"
+								onclick={() => {
+									selectedStarter = 'tares';
+									if (activeRow === 0 && currentCol === 0) selectSuggestion('tares');
+								}}
+							>
+								<span class="font-bold tracking-wider">TARES</span>
+								<span class="text-[10px] font-normal opacity-80">High entropy</span>
+							</Button>
+						</div>
+					</Card.Content>
+				</Card.Root>
+
+				<!-- Simulation -->
+				<Card.Root>
+					<Card.Header class="pb-3">
+						<Card.Title class="text-base">Simulate Game</Card.Title>
+						<Card.Description>Enter target word to auto-solve</Card.Description>
+					</Card.Header>
+					<Card.Content class="pb-4">
+						<div class="flex gap-2">
+							<Input
+								bind:value={simTarget}
+								maxlength={5}
+								placeholder="e.g. CRANE"
+								class="uppercase"
+								onkeydown={(e) => e.key === 'Enter' && !isSimulating && simulateGame()}
+							/>
+							<Button disabled={isSimulating || simTarget.length !== 5} onclick={simulateGame}>
+								{isSimulating ? '...' : 'Simulate'}
+							</Button>
 						</div>
 					</Card.Content>
 				</Card.Root>
