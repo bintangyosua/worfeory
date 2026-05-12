@@ -23,6 +23,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { RotateCcw, Lightbulb, Info, Zap } from '@lucide/svelte';
 	import { onMount } from 'svelte';
+	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
 	// Game state
 	let guesses = $state<GuessRow[]>(createEmptyBoard());
@@ -325,6 +326,7 @@
 					<RotateCcw class="mr-1 h-4 w-4" />
 					Reset
 				</Button>
+				<ThemeToggle />
 			</div>
 		</div>
 	</header>
