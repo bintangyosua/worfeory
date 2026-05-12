@@ -285,7 +285,10 @@
 
 	// Handle physical keyboard events
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.ctrlKey || e.altKey || e.metaKey) return;
+		if (e.ctrlKey || e.altKey || e.metaKey || isSimulating) return;
+
+		// Ignore global keyboard events if user is typing in an input field
+		if (e.target && (e.target as HTMLElement).tagName === 'INPUT') return;
 
 		if (e.key === 'Backspace') {
 			e.preventDefault();
