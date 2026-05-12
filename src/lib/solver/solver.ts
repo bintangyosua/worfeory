@@ -23,12 +23,21 @@ export interface SolverSuggestion {
 	score: number;
 }
 
+export type SolverMode = 'rookie' | 'veteran' | 'legend';
+
+export interface GuessHistory {
+	guess: string;
+	pattern: string;
+}
+
 /**
  * Get the best guess suggestions based on the current remaining wordlist.
  * Returns top N suggestions sorted by entropy score.
  */
 export function getSuggestions(
 	remainingWords: string[],
+	history: GuessHistory[] = [],
+	mode: SolverMode = 'rookie',
 	topN: number = 10
 ): SolverSuggestion[] {
 	if (remainingWords.length === 0) return [];
@@ -44,9 +53,31 @@ export function getSuggestions(
 	}
 
 	const scored: SolverSuggestion[] = [];
+	let candidatesPool: string[];
 
-	// Score all words from the total wordlist
-	for (const word of totalWordlist) {
+	if (mode === 'rookie') {
+		candidatesPool = totalWordlist;
+	} else if (mode === 'veteran') {
+		candidatesPool = totalWordlist.filter((word) => {
+			for (const h of history) {
+				for (let i = 0; i < 5; i++) {
+					if (h.pattern[i] === 'C') {
+						if (word[i] !== h.guess[i]) return false;
+					} else if (h.pattern[i] === 'P') {
+						if (!word.includes(h.guess[i])) return false;
+					}
+				}
+			}
+			return true;
+		});
+	} else if (mode === 'legend') {
+		candidatesPool = remainingWords;
+	} else {
+		candidatesPool = totalWordlist;
+	}
+
+	// Score all words from the candidates pool
+	for (const word of candidatesPool) {
 		const score = entropy(remainingWords, word);
 		scored.push({ word, score });
 	}
